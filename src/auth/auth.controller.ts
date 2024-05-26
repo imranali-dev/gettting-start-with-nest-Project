@@ -1,42 +1,36 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Patch,
-  Param,
-  Delete,
-} from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Request } from '@nestjs/common';
 import { AuthService } from './auth.service';
+import { CreateUserDto } from 'src/users/dto/create-user.dto';
+import { SignIN } from 'src/users/dto/signIn-user.dto';
+import { AuthGuard } from '@nestjs/passport';
+import { Users } from 'src/users/secama/Model.Users';
 import { CreateAuthDto } from './dto/create-auth.dto';
-import { UpdateAuthDto } from './dto/update-auth.dto';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  @Post()
-  create(@Body() createAuthDto: CreateAuthDto) {
-    return this.authService.create(createAuthDto);
+  @Post('sign-up')
+  async signUp(@Body() createUserDto: CreateUserDto) {
+    return this.authService.signUp(createUserDto);
   }
 
-  @Get()
-  findAll() {
-    return this.authService.findAll();
+  @Post('login')
+  async login(@Body() signInDto: SignIN) {
+    const user = await this.authService.validateUser(
+      signInDto.email,
+      signInDto.password,
+    );
+    return this.authService.login(user);
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.authService.findOne(+id);
+  @UseGuards(AuthGuard('jwt'))
+  @Post('profile')
+  getProfile(@Request() req) {
+    return req.user;
   }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateAuthDto: UpdateAuthDto) {
-    return this.authService.update(+id, updateAuthDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.authService.remove(+id);
+  @Post('verify')
+  async verifyUser(@Body() verifyUserDto: CreateAuthDto): Promise<Users> {
+    return this.authService.verifyUser(verifyUserDto);
   }
 }

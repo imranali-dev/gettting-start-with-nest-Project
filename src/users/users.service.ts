@@ -11,6 +11,11 @@ import { UserDocument, Users } from './secama/Model.Users';
 import { Model } from 'mongoose';
 import { SignIN } from './dto/signIn-user.dto';
 import * as bcrypt from 'bcryptjs';
+import { comparePassword, hashPassword } from 'src/utils/hash.util';
+import {
+  generateVerificationCode,
+  generateVerificationExpiry,
+} from 'src/utils/code.util';
 // import { AuthToken } from './auth.service';
 
 @Injectable()
@@ -22,6 +27,72 @@ export class UsersService {
     // @Injectable(private readonly authservicea:AuthToken),
   ) {}
   //Promise <Users> this basically only return whatever its saving
+  private async handleErrors(error: any): Promise<void> {
+    if (error.code === 11000) {
+      throw new BadRequestException('User with this email already exists');
+    }
+    if (error.errors) {
+      const messages = Object.values(error.errors).map(
+        (err: any) => err.message,
+      );
+      throw new BadRequestException(messages);
+    }
+    throw new InternalServerErrorException(
+      'An error occurred while processing the request',
+    );
+  }
+  async AuthUsers(payload: CreateUserDto): Promise<Users> {
+    try {
+      const existingUser = await this.userModel
+        .findOne({ username: payload.username })
+        .exec();
+      if (existingUser && existingUser.isVerified) {
+        throw new BadRequestException('Username is already taken and verified');
+      }
+      if (existingUser && new Date() < existingUser.verifyCodeExpiry) {
+        throw new BadRequestException(
+          'Username is already taken and awaiting verification',
+        );
+      }
+      const hashedPassword = await hashPassword(payload.password);
+      const verificationCode = generateVerificationCode();
+      const verifyCodeExpiry = generateVerificationExpiry();
+      const user = existingUser ? existingUser : new this.userModel(payload);
+      user.name = payload.name;
+      user.email = payload.email;
+      user.username = payload.username;
+      user.password = hashedPassword;
+      user.isVerified = false;
+      user.verifyCode = verificationCode;
+      user.verifyCodeExpiry = verifyCodeExpiry;
+      return await user.save();
+    } catch (error) {
+      await this.handleErrors(error);
+    }
+  }
+  async signINuser(payload: SignIN): Promise<Users> {
+    try {
+      const user = await this.userModel
+        .findOne({ email: payload.email })
+        .exec();
+      if (!user) {
+        throw new BadRequestException('User with this email not found');
+      }
+      console.log(user.password);
+      const isPasswordValid = await comparePassword(
+        payload.password,
+        user.password,
+      );
+      console.log(isPasswordValid);
+
+      if (!isPasswordValid) {
+        throw new BadRequestException('Invalid password');
+      }
+      return user;
+    } catch (error) {
+      await this.handleErrors(error);
+    }
+  }
   async create(createUserDto: CreateUserDto): Promise<Users> {
     try {
       const hasingpassword = await bcrypt.hashSync(createUserDto.password);
@@ -51,10 +122,16 @@ export class UsersService {
       }
     }
   }
-
+  async findOneByEmail(email: string): Promise<Users> {
+    return this.userModel.findOne({ email }).exec();
+  }
   async findAll(): Promise<Users[]> {
     try {
-      return await this.userModel.find().exec();
+      const users = await this.userModel.find().exec();
+      if (!users) {
+        throw new BadRequestException('no Users Found');
+      }
+      return users;
     } catch (error) {
       throw new InternalServerErrorException(
         'An error occurred while fetching users',

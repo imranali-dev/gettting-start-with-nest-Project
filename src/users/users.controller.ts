@@ -17,6 +17,14 @@ import { Users } from './secama/Model.Users';
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
+  @Post('signupauth')
+  AUth(@Body() payload: CreateUserDto) {
+    return this.usersService.AuthUsers(payload);
+  }
+  @Post('signin/b')
+  signinauth(@Body() payload: SignIN) {
+    return this.usersService.signINuser(payload);
+  }
   @Post()
   create(@Body() createUserDto: CreateUserDto) {
     return this.usersService.create(createUserDto);
@@ -41,7 +49,7 @@ export class UsersController {
   remove(@Param('id') id: string) {
     return this.usersService.remove(id);
   }
-  @Post('/signin')
+  @Post('/signin/a')
   SignIn(@Body() SignintoDTO: SignIN): Promise<Users> {
     return this.usersService.SigIn(SignintoDTO);
   }
